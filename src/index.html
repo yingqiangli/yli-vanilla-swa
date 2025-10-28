@@ -1,19 +1,382 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="styles.css">
-  <title>Vanilla JavaScript App</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ISE Shift Draft — Single‑File</title>
+  <style>
+    :root{
+      --bg:#f5f6f8; --fg:#111827; --muted:#6b7280; --border:#e5e7eb;
+      --white:#fff; --card:#ffffff; --cardShadow:0 1px 2px rgba(0,0,0,.06);
+      --primary:#2563eb; --primary-700:#1d4ed8; --indigo-600:#4f46e5;
+      --green:#16a34a; --red:#dc2626; --blue-800:#1e3a8a; --blue-900:#1e40af;
+      --hover:#f8fafc;
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, Noto Sans, "Apple Color Emoji","Segoe UI Emoji"}
+    .container{max-width:1200px;margin:0 auto;padding:24px}
+    h1{font-size:24px;margin:0}
+    h2{font-size:16px;margin:0 0 10px}
+    h3{font-size:15px;margin:0 0 10px}
+
+    .row{display:grid;gap:16px}
+    @media(min-width:900px){.row.cols-3{grid-template-columns:repeat(3,1fr)}.row.cols-2{grid-template-columns:repeat(2,1fr)}}
+
+    .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--cardShadow);padding:16px}
+    .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .header .left{display:flex;gap:10px;align-items:center}
+    .badge{display:grid;place-items:center;width:32px;height:32px;background:#fff;border:1px solid var(--border);border-radius:10px}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);background:#fff;border-radius:18px;padding:8px 14px;cursor:pointer}
+    .btn:hover{background:var(--hover)}
+    .btn.primary{background:var(--green);color:#fff;border-color:var(--green)}
+    .btn.toggle.on{background:var(--indigo-600);color:#fff;border-color:var(--indigo-600)}
+    .btn[disabled]{opacity:.6;cursor:not-allowed}
+
+    .field{display:flex;flex-direction:column;gap:6px}
+    .input, select, textarea{border:1px solid var(--border);border-radius:12px;padding:8px}
+    textarea{resize:vertical;min-height:100px}
+    label{font-size:12px;color:var(--muted)}
+
+    .muted{color:var(--muted)}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace}
+
+    .grid-days{display:grid;gap:12px}
+    @media(min-width:700px){.grid-days{grid-template-columns:repeat(2,1fr)}}
+    @media(min-width:1000px){.grid-days{grid-template-columns:repeat(3,1fr)}}
+
+    .day{border:1px solid var(--border);border-radius:var(--radius);padding:12px}
+    .day.closed{background:#f9fafb;opacity:.95}
+    .day-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+    .open-pill{font-size:11px;color:var(--muted)}
+
+    .slot-btn{width:100%;text-align:left;border:1px solid var(--border);border-radius:12px;padding:8px 10px;background:#fff;cursor:pointer}
+    .slot-btn:hover{background:#fafafa}
+    .slot-btn.disabled{cursor:not-allowed;opacity:.6}
+    .slot-picked-ise{background:var(--blue-800);border-color:var(--blue-900);color:#fff}
+    .slot-picked-mgr{background:#f3f4f6;color:#111}
+    .slot-meta{font-size:11px;margin-top:4px;color:#6b7280}
+    .slot-picked-ise .slot-meta{color:#c7d2fe}
+    .slot-picked-ise .subtle{color:#c7d2fe}
+
+    .controls .timer{font-size:28px;margin-top:6px}
+    .danger{color:var(--red)}
+    @keyframes pulse {0%{opacity:1}50%{opacity:.4}100%{opacity:1}}
+    .pulse{animation:pulse 1s infinite}
+
+    .table{width:100%;border-collapse:collapse}
+    .table th,.table td{padding:6px 8px;border-top:1px solid var(--border);text-align:left}
+
+    .help ol{padding-left:18px}
+  </style>
 </head>
-
 <body>
-  <main>
-    <h1>Vanilla JavaScript App - updated by Ying Li on 10/27/2025 at 3:24pm</h1>
-	<h1>Waiting for next update....</h1>
-	
-  </main>
-</body>
+  <div class="container">
+    <div class="header">
+      <div class="left">
+        <div class="badge">📅</div>
+        <h1>ISE Shift Draft</h1>
+      </div>
+      <div class="right" style="display:flex;gap:8px;align-items:center">
+        <button id="btnExportCSV" class="btn">⬇️ Export CSV</button>
+        <button id="btnExportXLS" class="btn">⬇️ Export Excel</button>
+        <button id="btnMgr" class="btn toggle">Manager Mode</button>
+      </div>
+    </div>
+    <div id="downloadWrap" class="muted" style="font-size:12px;display:none;margin:-6px 0 10px 44px">
+      <a id="downloadLink" href="#" download>Click here if your download didn't start</a>
+    </div>
 
+    <!-- Setup -->
+    <div class="row cols-3">
+      <div class="card">
+        <h2>👥 ISE Roster</h2>
+        <div class="field">
+          <label>Upload CSV (.csv) — Column A: Name, Column B: Years (optional). Reads rows 1–59.
+            <br><span class="muted">(For .xlsx, please "Save As… CSV" first to use this single‑file version.)</span>
+          </label>
+          <input id="fileRoster" type="file" accept=".csv,.txt" class="input"/>
+        </div>
+        <div class="field">
+          <label>Or paste names (one per line)</label>
+          <textarea id="namesRaw" class="input" placeholder="One name per line…"></textarea>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button id="btnUseNames" class="btn" title="Use the pasted names">Use Names</button>
+          <button id="btnRerollRound2" class="btn" style="display:none">🔀 Re‑roll Round 2</button>
+          <button id="btnRandomBase" class="btn" style="display:none">🔀 Randomize Base Order</button>
+        </div>
+        <div id="orderPreview" class="muted" style="font-size:12px;margin-top:8px;display:none"></div>
+      </div>
+
+      <div class="card">
+        <h2>🗓️ Month & Timer</h2>
+        <div class="row cols-2">
+          <div class="field"><label>Year</label><input id="inpYear" type="number" class="input" value="2026"/></div>
+          <div class="field"><label>Month</label><select id="selMonth" class="input"></select></div>
+          <div class="field"><label>Picks per person (fixed)</label><input type="number" class="input" value="2" disabled/></div>
+          <div class="field"><label>Seconds per pick</label><input id="inpSeconds" type="number" class="input" value="60" min="15" step="15"/></div>
+        </div>
+        <div class="card" style="background:#f9fafb;margin-top:10px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:6px">Turn order mode</div>
+          <label style="margin-right:16px;font-size:13px"><input type="radio" name="ordermode" value="seniority_random" checked> Seniority → Random</label>
+          <label style="font-size:13px"><input type="radio" name="ordermode" value="snake"> Snake (forward then reverse)</label>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:6px">Weekdays only. <b>Jan–Jun 2026 only</b>. Each ISE may make <b>2 picks/month</b>. Timer turns <span style="color:var(--red)">red</span> & pulses at ≤10s.</p>
+      </div>
+
+      <div class="card controls">
+        <h2>⏱️ Controls</h2>
+        <div style="display:flex;flex-wrap:wrap;gap:8px">
+          <button id="btnStart" class="btn primary">▶️ Start Draft</button>
+          <button id="btnPause" class="btn" disabled>⏸️ Pause</button>
+          <button id="btnSkip" class="btn" disabled>⏭️ Skip Turn</button>
+          <button id="btnReset" class="btn">↩️ Reset</button>
+        </div>
+        <div class="card" style="background:#f9fafb;margin-top:10px">
+          <div>Picker: <b id="lblPicker">—</b></div>
+          <div>This turn picks: <b id="lblPicksTurn">0</b> / 1</div>
+          <div>Monthly picks used: <b id="lblPicksMonth">0</b> / 2</div>
+          <div id="lblCountdown" class="timer mono">0:00</div>
+          <div style="margin-top:6px">On deck: <b id="lblDeck">—</b></div>
+          <div>In the hole: <b id="lblHole">—</b></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Shifts -->
+    <div class="card" style="margin-top:16px">
+      <h2 id="monthHeader">Month</h2>
+      <div id="daysGrid" class="grid-days"></div>
+    </div>
+
+    <!-- Roster & Picks -->
+    <div class="row cols-2" style="margin-top:16px">
+      <div class="card">
+        <h3>Draft Order & Picks</h3>
+        <ol id="orderList" style="list-style:none;padding-left:0;margin:0;display:grid;gap:8px"></ol>
+      </div>
+      <div class="card">
+        <h3>Open Shifts Summary</h3>
+        <div class="muted" style="margin-bottom:8px"><span id="lblOpenCount">0</span> open shift slots remain.</div>
+        <div style="border:1px solid var(--border);border-radius:12px;max-height:420px;overflow:auto">
+          <table class="table">
+            <thead><tr><th>Date</th><th>Shift</th><th>Slot</th></tr></thead>
+            <tbody id="openTable"></tbody>
+          </table>
+        </div>
+        <p class="muted" style="font-size:12px;margin-top:6px">Use Manager Mode to assign remaining shifts after the draft.</p>
+      </div>
+    </div>
+
+    <!-- Help -->
+    <div class="card help" style="margin-top:16px">
+      <h3>How to use</h3>
+      <ol>
+        <li>Upload your roster as <b>CSV</b> (A = Name, B = Years) or paste names and click <b>Use Names</b>. (For .xlsx, save as CSV first.)</li>
+        <li>Choose <b>Turn order mode</b>: <i>Seniority → Random</i> or <i>Snake</i>.</li>
+        <li>If <i>Seniority → Random</i>, you can <b>Re‑roll Round 2</b>. If <i>Snake</i>, click <b>Randomize Base Order</b> (or keep roster order).</li>
+        <li>Select <b>Year</b> & <b>Month</b>. Picks per person is fixed at <b>2</b>. Timer defaults to <b>60s</b> (editable).</li>
+        <li>Click <b>Start Draft</b>. Each turn allows <b>1 pick</b>. The sequence for the month is Round 1 followed by Round 2.</li>
+        <li>Use <b>Pause</b> or <b>Skip Turn</b> as needed. Unpicked slots stay open for Manager assignment.</li>
+        <li>After the draft, toggle <b>Manager Mode</b> to assign any remaining shifts manually.</li>
+        <li>Export <b>CSV</b> or Excel‑compatible <b>.xls</b> (opens in Excel).</li>
+      </ol>
+    </div>
+  </div>
+
+<script>
+// ===== Utilities =====
+const SHIFT_TEMPLATES=[
+  {code:'A1',label:'7:00–2:00',slots:2},
+  {code:'B1',label:'8:00–3:00',slots:2},
+  {code:'C1',label:'9:30–4:30',slots:1},
+  {code:'D1',label:'1:00–8:00',slots:1},
+];
+const pad=n=>n<10?`0${n}`:`${n}`;
+const fmtDateKey=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const toCsv=rows=>rows.map(r=>r.map(v=>`"${(v??'').toString().replace(/"/g,'""')}"`).join(',')).join('\n');
+function shuffle(a){a=[...a];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a}
+function generateMonthDays(year,mi){const out=[];const d=new Date(year,mi,1);while(d.getMonth()===mi){const wd=d.getDay();if(wd!==0&&wd!==6)out.push(new Date(d));d.setDate(d.getDate()+1);}return out}
+function buildShiftPool(days){const pool={};for(const day of days){const key=fmtDateKey(day);pool[key]=[];for(const t of SHIFT_TEMPLATES){for(let i=1;i<=t.slots;i++){pool[key].push({id:`${key}-${t.code}-${i}`,date:new Date(day),label:t.label,code:t.code,slotIndex:i,assignedTo:null,turn:null,pickInTurn:null,pickOrder:null});}}}return pool}
+function extractRosterFromCSV(text){const lines=text.split(/\r?\n/).filter(Boolean).slice(0,59);const out=[];for(const ln of lines){const parts=ln.split(',');const name=(parts[0]||'').trim();if(!name)continue;const yearsRaw=(parts[1]||'').trim();const n=Number(yearsRaw);out.push({name,years:Number.isFinite(n)?n:0});}return out}
+
+// ===== State =====
+const state={
+  year:2026,monthIndex:0,secondsPerPick:60,picksPerTurn:1,picksPerMonth:2,
+  orderMode:'seniority_random',
+  roster:[],round2Random:[],baseOrder:[],
+  isDraftStarted:false,isPaused:false,currentIndex:0,countdown:60,picksThisTurn:0,turnNumber:1,
+  shiftPool:{},picksByUser:{},managerMode:false,timer:null,lastUrl:null,
+};
+
+// ===== Derived =====
+const names=()=>state.roster.map(r=>r.name);
+const round1Seniority=()=>[...state.roster].sort((a,b)=>(b.years||0)-(a.years||0)||a.name.localeCompare(b.name)).map(r=>r.name);
+const round1Base=()=>state.baseOrder.length?state.baseOrder:names();
+const round2ForMode=()=>state.orderMode==='seniority_random'?state.round2Random:[...round1Base()].reverse();
+const turnSequence=()=>{const r1=state.orderMode==='seniority_random'?round1Seniority():round1Base();const r2=round2ForMode();return r1.length?[...r1,...r2]:[]};
+const activeName=()=>turnSequence()[state.currentIndex]??null;
+const nextName=o=>{const seq=turnSequence();const t=state.currentIndex+o;return t<seq.length?seq[t]:null};
+const availableShifts=()=>{const list=[];Object.values(state.shiftPool).forEach(arr=>arr.forEach(s=>{if(!s.assignedTo)list.push(s)}));return list.sort((a,b)=>a.date-b.date||a.label.localeCompare(b.label))};
+function countUserPicks(who){let c=0;for(const k in state.shiftPool){for(const s of state.shiftPool[k]) if(s.assignedTo===who)c++}return c}
+function findShift(id){for(const k in state.shiftPool){const hit=state.shiftPool[k].find(s=>s.id===id);if(hit)return hit}return null}
+function userHasShiftOnDate(who,date){const picks=(state.picksByUser[who]||[]).map(findShift).filter(Boolean);const key=fmtDateKey(new Date(date));return picks.some(p=>fmtDateKey(p.date)===key)}
+
+// ===== DOM =====
+const $=id=>document.getElementById(id);
+const el={
+  selMonth:$('selMonth'),inpYear:$('inpYear'),inpSeconds:$('inpSeconds'),
+  btnStart:$('btnStart'),btnPause:$('btnPause'),btnSkip:$('btnSkip'),btnReset:$('btnReset'),
+  btnMgr:$('btnMgr'),btnExportCSV:$('btnExportCSV'),btnExportXLS:$('btnExportXLS'),
+  fileRoster:$('fileRoster'),namesRaw:$('namesRaw'),btnUseNames:$('btnUseNames'),
+  btnRerollRound2:$('btnRerollRound2'),btnRandomBase:$('btnRandomBase'),orderPreview:$('orderPreview'),
+  monthHeader:$('monthHeader'),daysGrid:$('daysGrid'),orderList:$('orderList'),
+  lblPicker:$('lblPicker'),lblPicksTurn:$('lblPicksTurn'),lblPicksMonth:$('lblPicksMonth'),lblCountdown:$('lblCountdown'),
+  lblDeck:$('lblDeck'),lblHole:$('lblHole'),lblOpenCount:$('lblOpenCount'),openTable:$('openTable'),
+  downloadWrap:$('downloadWrap'),downloadLink:$('downloadLink'),
+};
+
+// Build month select
+(function(){for(let i=0;i<12;i++){const o=document.createElement('option');const label=new Date(2000,i,1).toLocaleString(undefined,{month:'long'});o.value=String(i);o.textContent=label+((state.year!==2026||i>5)?' (locked)':'');o.disabled=(state.year!==2026||i>5);if(i===state.monthIndex)o.selected=true;el.selMonth.appendChild(o)}})();
+
+// ===== Rendering =====
+function renderAll(){
+  // Toggle
+  el.btnMgr.classList.toggle('on', state.managerMode);
+
+  // Month header
+  const label=new Date(2000,state.monthIndex,1).toLocaleString(undefined,{month:'long'});
+  el.monthHeader.textContent=`${label} ${state.year} Weekday Shifts`;
+
+  // Order preview
+  const mode=state.orderMode;const r1=mode==='seniority_random'?round1Seniority():round1Base();const r2=round2ForMode();
+  if(r1.length||r2.length){el.orderPreview.style.display='block';
+    if(mode==='seniority_random'){
+      el.orderPreview.innerHTML=`<div><b>Round 1 (Seniority)</b>: ${r1.map(n=>{const y=(state.roster.find(x=>x.name===n)?.years)||0;return `${n} (${y}y)`}).join(' → ')}</div>`+
+                                `<div><b>Round 2 (Random)</b>: ${r2.join(' → ')}</div>`;
+      el.btnRerollRound2.style.display='inline-flex'; el.btnRandomBase.style.display='none';
+    }else{
+      el.orderPreview.innerHTML=`<div><b>Round 1 (Base)</b>: ${r1.join(' → ')}</div>`+
+                                `<div><b>Round 2 (Reverse)</b>: ${r2.join(' → ')}</div>`;
+      el.btnRerollRound2.style.display='none'; el.btnRandomBase.style.display='inline-flex';
+    }
+  }else{el.orderPreview.style.display='none'; el.btnRerollRound2.style.display='none'; el.btnRandomBase.style.display='none'}
+
+  // Controls
+  el.btnPause.disabled=!state.isDraftStarted; el.btnSkip.disabled=!state.isDraftStarted; el.btnStart.disabled=state.isDraftStarted||names().length===0;
+
+  // Picker
+  const active=activeName(); el.lblPicker.textContent=active||'—'; el.lblPicksTurn.textContent=String(state.picksThisTurn); el.lblPicksMonth.textContent=String(active?countUserPicks(active):0);
+  const m=Math.floor(state.countdown/60), s=state.countdown%60; el.lblCountdown.textContent=`${m}:${pad(s)}`;
+  const flash = state.countdown<=10 && state.isDraftStarted && !state.isPaused; el.lblCountdown.classList.toggle('danger', flash); el.lblCountdown.classList.toggle('pulse', flash);
+  el.lblDeck.textContent=nextName(1)||'—'; el.lblHole.textContent=nextName(2)||'—';
+
+  // Grids
+  renderDaysGrid(); renderOrderList(); renderOpenTable();
+}
+
+function renderDaysGrid(){
+  el.daysGrid.innerHTML='';
+  const days=generateMonthDays(state.year,state.monthIndex);
+  for(const d of days){const key=fmtDateKey(d);const weekday=d.toLocaleDateString(undefined,{weekday:'short'});const label=d.toLocaleDateString(undefined,{month:'short',day:'numeric'});const list=(state.shiftPool[key]||[]);const anyOpen=list.some(s=>!s.assignedTo);
+    const card=document.createElement('div'); card.className='day'+(anyOpen?'':' closed');
+    const head=document.createElement('div'); head.className='day-head'; head.innerHTML=`<div style="font-weight:600">${weekday} • ${label}</div><div class="open-pill">${list.filter(s=>!s.assignedTo).length} open</div>`; card.appendChild(head);
+    const grid=document.createElement('div'); grid.style.display='grid'; grid.style.gap='8px';
+    list.forEach(s=>{ const picked=!!s.assignedTo; const isISEPick=picked && s.assignedTo && s.assignedTo!=='Manager';
+      const disabled = !state.managerMode && (picked || !state.isDraftStarted || state.isPaused || !activeName() || userHasShiftOnDate(activeName(), s.date) || countUserPicks(activeName()||'')>=state.picksPerMonth);
+      const btn=document.createElement('button'); btn.className='slot-btn'+(picked?(isISEPick?' slot-picked-ise':' slot-picked-mgr'):'')+(disabled?' disabled':'');
+      btn.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+        <div>
+          <div style="font-weight:600" class="${isISEPick?'':'subtle'}">${s.label} <span class="subtle" style="font-size:12px">(slot ${s.slotIndex})</span></div>
+          <div class="subtle" style="font-size:12px">ID: ${s.code}</div>
+        </div>
+        <div style="text-align:right">
+          <div class="subtle" style="font-size:12px">${picked?'Assigned':'Open'}</div>
+          <div style="font-size:12px">${s.assignedTo||''}</div>
+        </div>
+      </div>`+(picked?`<div class="slot-meta">Turn ${s.turn} • Pick ${s.pickOrder}</div>`:'');
+      btn.addEventListener('click',()=>{ if(state.managerMode){ picked?unassignShift(s.id):assignShift(s.id,'Manager'); } else handlePick(s.id); });
+      grid.appendChild(btn);
+    });
+    card.appendChild(grid); el.daysGrid.appendChild(card);
+  }
+}
+
+function renderOrderList(){
+  el.orderList.innerHTML=''; const list=(state.orderMode==='seniority_random'?round1Seniority():round1Base()); const seq=turnSequence();
+  list.forEach((n,idx)=>{ const li=document.createElement('li'); const isActive=(seq[state.currentIndex]===n)&&state.isDraftStarted&&!state.isPaused; li.style.border='1px solid var(--border)'; li.style.borderRadius='12px'; li.style.padding='8px'; if(isActive) li.style.borderColor='#16a34a';
+    const yrs=state.roster.find(r=>r.name===n)?.years??0; const picks=(state.picksByUser[n]||[]).map(findShift).filter(Boolean);
+    li.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:600">${idx+1}. ${n} ${state.orderMode==='seniority_random'?`<span class="muted" style="font-size:12px">(${yrs}y)</span>`:''}</div>
+      ${isActive?`<div style="color:#166534;font-size:12px">On the clock…</div>`:''}
+    </div>
+    <div class="muted" style="font-size:12px;margin-top:2px">Total picks: ${picks.length}</div>
+    ${picks.length?`<ul style="margin:6px 0 0 18px">${picks.map(p=>`<li style="font-size:13px">${fmtDateKey(p.date)} — ${p.label} (slot ${p.slotIndex})</li>`).join('')}</ul>`:''}`;
+    el.orderList.appendChild(li);
+  });
+}
+
+function renderOpenTable(){ const list=availableShifts(); el.lblOpenCount.textContent=String(list.length); el.openTable.innerHTML=list.map(s=>`<tr><td>${fmtDateKey(s.date)}</td><td>${s.label}</td><td>${s.slotIndex}</td></tr>`).join(''); }
+
+// ===== Actions =====
+function resetDraft(){ state.isDraftStarted=false;state.isPaused=false;state.currentIndex=0;state.countdown=state.secondsPerPick;state.picksThisTurn=0;state.turnNumber=1;state.picksByUser={}; state.shiftPool=buildShiftPool(generateMonthDays(state.year,state.monthIndex)); stopTimer(); renderAll(); }
+function startDraft(){ if(names().length===0) return; if(state.orderMode==='seniority_random'&&state.round2Random.length===0) state.round2Random=shuffle(names()); if(state.orderMode==='snake'&&state.baseOrder.length===0) state.baseOrder=[...names()]; state.isDraftStarted=true;state.isPaused=false;state.picksThisTurn=0;state.turnNumber=1;state.countdown=state.secondsPerPick; startTimer(); renderAll(); }
+function pauseDraft(){ state.isPaused=!state.isPaused; if(state.isPaused) stopTimer(); else startTimer(); renderAll(); }
+function advanceTurn(){ const seq=turnSequence(); const isLast=state.currentIndex>=Math.max(seq.length-1,0); if(!isLast){ state.currentIndex++; state.picksThisTurn=0; state.turnNumber++; state.countdown=state.secondsPerPick; renderAll(); return;} state.isDraftStarted=false; state.isPaused=false; stopTimer(); renderAll(); }
+function startTimer(){ stopTimer(); state.timer=setInterval(()=>{ if(!state.isDraftStarted||state.isPaused) return; if(state.countdown<=1){ advanceTurn(); return;} state.countdown--; renderAll(); },1000); }
+function stopTimer(){ if(state.timer){ clearInterval(state.timer); state.timer=null; }}
+function assignShift(id,who){ for(const k in state.shiftPool){ state.shiftPool[k]=state.shiftPool[k].map(s=> s.id===id && !s.assignedTo ? {...s,assignedTo:who,turn:state.turnNumber,pickInTurn:state.picksThisTurn+1,pickOrder:`${state.turnNumber}.${state.picksThisTurn+1}`} : s ); } const arr=state.picksByUser[who]?[...state.picksByUser[who]]:[]; arr.push(id); state.picksByUser[who]=arr; renderAll(); }
+function unassignShift(id){ for(const k in state.shiftPool){ state.shiftPool[k]=state.shiftPool[k].map(s=> s.id===id ? {...s,assignedTo:null,turn:null,pickInTurn:null,pickOrder:null} : s); } for(const n in state.picksByUser){ state.picksByUser[n]=(state.picksByUser[n]||[]).filter(x=>x!==id); } renderAll(); }
+function handlePick(id){ if(!state.isDraftStarted||state.isPaused) return; const who=activeName(); if(!who) return; if(countUserPicks(who)>=state.picksPerMonth) return; const s=findShift(id); if(!s) return; if(userHasShiftOnDate(who, s.date)) return; if(state.picksThisTurn>=state.picksPerTurn) return; assignShift(id, who); state.picksThisTurn++; if(state.picksThisTurn>=state.picksPerTurn) advanceTurn(); else renderAll(); }
+
+// ===== Importers =====
+el.fileRoster.addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const reader=new FileReader(); reader.onload=ev=>{ try{ const text=ev.target.result; state.roster=extractRosterFromCSV(text); state.baseOrder=names(); state.round2Random=shuffle(names()); renderAll(); }catch(err){ console.error(err); alert('Unable to read CSV. Expect Column A=Name, Column B=Years. Reads rows 1–59.'); } }; reader.readAsText(f); });
+
+el.btnUseNames.addEventListener('click',()=>{ const cleaned=el.namesRaw.value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean).slice(0,59); state.roster=cleaned.map(name=>({name,years:0})); state.baseOrder=names(); state.round2Random=shuffle(names()); renderAll(); });
+
+// ===== Inputs =====
+el.inpYear.addEventListener('change',()=>{ state.year=parseInt(el.inpYear.value||'2026',10); // rebuild month select
+  el.selMonth.innerHTML=''; for(let i=0;i<12;i++){const o=document.createElement('option'); const label=new Date(2000,i,1).toLocaleString(undefined,{month:'long'}); o.value=String(i); o.textContent=label+((state.year!==2026||i>5)?' (locked)':''); o.disabled=(state.year!==2026||i>5); if(i===state.monthIndex)o.selected=true; el.selMonth.appendChild(o);} state.shiftPool=buildShiftPool(generateMonthDays(state.year,state.monthIndex)); state.isDraftStarted=false; state.isPaused=false; state.currentIndex=0; state.picksThisTurn=0; stopTimer(); renderAll(); });
+
+el.selMonth.addEventListener('change',()=>{ state.monthIndex=parseInt(el.selMonth.value,10); state.shiftPool=buildShiftPool(generateMonthDays(state.year,state.monthIndex)); state.isDraftStarted=false; state.isPaused=false; state.currentIndex=0; state.picksThisTurn=0; stopTimer(); renderAll(); });
+
+document.querySelectorAll('input[name=ordermode]').forEach(r=> r.addEventListener('change',e=>{ state.orderMode=e.target.value; state.isDraftStarted=false; state.isPaused=false; state.currentIndex=0; state.picksThisTurn=0; stopTimer(); renderAll(); }));
+
+el.inpSeconds.addEventListener('change',()=>{ state.secondsPerPick=parseInt(el.inpSeconds.value||'60',10); state.countdown=state.secondsPerPick; renderAll(); });
+
+el.btnStart.addEventListener('click',startDraft);
+el.btnPause.addEventListener('click',()=>{ if(!state.isDraftStarted) return; pauseDraft(); });
+el.btnSkip.addEventListener('click',()=>{ if(!state.isDraftStarted) return; advanceTurn(); });
+el.btnReset.addEventListener('click',resetDraft);
+el.btnMgr.addEventListener('click',()=>{ state.managerMode=!state.managerMode; renderAll(); });
+el.btnRerollRound2.addEventListener('click',()=>{ state.round2Random=shuffle(names()); state.currentIndex=0; renderAll(); });
+el.btnRandomBase.addEventListener('click',()=>{ state.baseOrder=shuffle(names()); state.currentIndex=0; renderAll(); });
+
+// ===== Exporters =====
+el.btnExportCSV.addEventListener('click',()=>{
+  const rows=[["Date","Shift","Slot","Assigned To","Turn","Pick In Turn","Pick Order"]];
+  Object.values(state.shiftPool).forEach(arr=>arr.forEach(s=>rows.push([fmtDateKey(s.date),s.label,s.slotIndex,s.assignedTo||'',s.turn||'',s.pickInTurn||'',s.pickOrder||''])));
+  const csvText='\uFEFF'+toCsv(rows);
+  try{ const blob=new Blob([csvText],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); if(state.lastUrl) try{URL.revokeObjectURL(state.lastUrl)}catch{}; state.lastUrl=url; triggerDownload(url,`ISE-Shift-Draft-${state.year}-${pad(state.monthIndex+1)}.csv`); }
+  catch(err){ console.error('CSV export failed:',err); window.open('data:text/csv;charset=utf-8,'+encodeURIComponent(csvText),'_blank'); }
+});
+
+// Excel-compatible .xls (HTML) — opens in Excel without external libs
+el.btnExportXLS.addEventListener('click',()=>{
+  const rows=[["Date","Shift","Slot","Assigned To","Turn","Pick In Turn","Pick Order"]];
+  Object.values(state.shiftPool).forEach(arr=>arr.forEach(s=>rows.push([fmtDateKey(s.date),s.label,s.slotIndex,s.assignedTo||'',s.turn||'',s.pickInTurn||'',s.pickOrder||''])));
+  const table = '<table>'+rows.map(r=>'\n<tr>'+r.map(c=>`<td>${String(c).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>`).join('')+'</tr>').join('')+'</table>';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"/><meta name="ProgId" content="Excel.Sheet"/></head><body>${table}</body></html>`;
+  try{ const blob=new Blob([html],{type:'application/vnd.ms-excel'}); const url=URL.createObjectURL(blob); if(state.lastUrl) try{URL.revokeObjectURL(state.lastUrl)}catch{}; state.lastUrl=url; triggerDownload(url,`ISE-Shift-Draft-${state.year}-${pad(state.monthIndex+1)}.xls`); }
+  catch(err){ console.error('XLS export failed:',err); const dataUrl='data:application/vnd.ms-excel,'+encodeURIComponent(html); window.open(dataUrl,'_blank'); }
+});
+
+function triggerDownload(url, filename){ el.downloadLink.href=url; el.downloadLink.download=filename; el.downloadWrap.style.display='block'; const a=document.createElement('a'); a.href=url; a.download=filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(()=>{ try{URL.revokeObjectURL(url)}catch{}; if(state.lastUrl===url) state.lastUrl=null; el.downloadWrap.style.display='none'; },60000); }
+
+// ===== Init =====
+(function init(){ state.shiftPool=buildShiftPool(generateMonthDays(state.year,state.monthIndex)); renderAll(); })();
+</script>
+</body>
 </html>
